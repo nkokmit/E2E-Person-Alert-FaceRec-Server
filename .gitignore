@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Dữ liệu & artefacts
+data/raw_frames/
+data/faces/
+data/faces_val/
+mlruns/
+*.onnx
+*.pt
+
+# Môi trường
+.venv/
+env/
