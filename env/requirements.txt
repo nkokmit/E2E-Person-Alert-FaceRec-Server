@@ -1,0 +1,14 @@
+ultralytics==8.3.0           # dùng YOLOv5/8 API của Ultralytics
+opencv-python
+opencv-contrib-python
+torch
+torchvision
+torchaudio
+mlflow
+wandb
+torchsummary
+pillow
+numpy
+scikit-learn
+albumentations
+pyyaml
