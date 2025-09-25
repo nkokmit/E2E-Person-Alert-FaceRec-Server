@@ -1,0 +1,17 @@
+# server/requirements.txt
+ultralytics==8.*
+opencv-python
+onnxruntime-gpu         # cho InsightFace (ArcFace) và/hoặc YOLO ONNX nếu muốn
+numpy
+scipy
+scikit-learn
+fastapi
+uvicorn[standard]
+python-multipart
+websockets
+pydantic-settings
+PyYAML
+SQLAlchemy
+lapx                    # NMS nhanh (nếu cần)
+faiss-cpu               # hoặc faiss-gpu nếu đã cài CUDA phù hợp
+mlflow                  # tuỳ chọn
