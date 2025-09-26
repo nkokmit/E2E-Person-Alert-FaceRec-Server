@@ -1,3 +1,1 @@
-
-    # Code chạy khi app SHUTDOWN
-    task.cancel()
+.\env\Scripts\activate

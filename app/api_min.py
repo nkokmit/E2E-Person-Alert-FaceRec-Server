@@ -1,91 +1,46 @@
-#uvicorn app.api_min:app --reload 
-#.\env\Scripts\activate
+# uvicorn app.api_min:app --reload 
+# .\env\Scripts\activate
 
-
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
-from collections import deque
-import uuid, asyncio, time
-from typing import List, Dict, Optional
-from fastapi import UploadFile, File, Form
-MAX_EVENTS = 200
-EVENT_BUFFER = deque(maxlen=MAX_EVENTS)   # luôn giữ mới nhất
-WS_CLIENTS: set[WebSocket] = set()
+import contextlib
+import asyncio, time, uuid, json
+from sqlalchemy.orm import Session
+from app.db import engine, Base, get_db
+from app.models import Event, Person
+from app.ws_manager import WSManager
 
+# ---------- Pydantic ----------
 class PersonEvent(BaseModel):
     id: str
     ts: float
     camera_id: str
-    source: str
-    bbox: List[int]
-    snapshot_url: Optional[str] = None     # tên field thống nhất
-    person: Optional[Dict] = None
+    source: str           # rtsp | ios | sim
+    bbox: list[int]       # [x1,y1,x2,y2]
+    snapshot_url: str | None = None
+    person: dict | None = None
 
-def push_event(evt: PersonEvent):
-    EVENT_BUFFER.append(evt.model_dump())  # có ()
+ws_manager = WSManager()
 
-async def broadcast(evt_dict: dict):
-    dead = [] # loại bỏ evt dis ra 
-    for ws in list(WS_CLIENTS):            # lặp trên bản sao để an toàn
-        try:
-            await ws.send_json(evt_dict)
-        except Exception:
-            dead.append(ws)
-    for ws in dead:
-        WS_CLIENTS.discard(ws)
+# ---------- helpers ----------
+def save_event(db: Session, evt: PersonEvent):
+    row = Event(
+        evt_id=evt.id,
+        ts=evt.ts,
+        camera_id=evt.camera_id,
+        source=evt.source,
+        bbox=json.dumps(evt.bbox),
+        snapshot_url=evt.snapshot_url,
+        person_id=(evt.person and evt.person.get("id"))
+    )
+    db.add(row)
+    db.commit()
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # STARTUP
-    task = asyncio.create_task(fake_generator())
-    try:
-        yield
-    finally:
-        # SHUTDOWN
-        task.cancel()
-        for ws in list(WS_CLIENTS):
-            try:
-                await ws.close()
-            except Exception:
-                pass
-        WS_CLIENTS.clear()
-
-app = FastAPI(title="Welcome to FastAPI", lifespan=lifespan)
-
-@app.get("/health")
-async def health():
-    return {"ok": True}
-
-@app.get("/events/recent")
-async def recent(limit: int = 50):
-    # deque không slice được trực tiếp -> chuyển list
-    data = list(EVENT_BUFFER)[-limit:]
-    return JSONResponse(data)
-
-@app.post("/enroll")
-async def enroll(name: str = Form(...), file: UploadFile = File(...)):
-    # TODO: về sau: trích face -> embed -> lưu DB
-    fake_person_id = "p_" + uuid.uuid4().hex[:6]
-    return {"person_id": fake_person_id, "faces": 1, "name": name}
-
-@app.websocket("/stream")
-async def stream(ws: WebSocket):
-    await ws.accept()                      # có ()
-    WS_CLIENTS.add(ws)
-    try:
-        while True:
-            await ws.receive_text()        # có await
-    except WebSocketDisconnect:
-        pass
-    finally:
-        WS_CLIENTS.discard(ws)
-
-async def fake_generator():
-    i = 0
+async def fake_generator(app: FastAPI):
+    # thay bằng detector thật sau
     while True:
-        i += 1
         evt = PersonEvent(
             id=f"evt_{uuid.uuid4().hex[:8]}",
             ts=time.time(),
@@ -93,8 +48,70 @@ async def fake_generator():
             source="sim",
             bbox=[100, 120, 260, 420],
             snapshot_url=None,
-            person=None if i % 3 else {"id": "p_01", "name": "Anh A"},
+            person=None
         )
-        push_event(evt)
-        await broadcast({"type": "person_event", **evt.model_dump()})
+        # lưu DB
+        with app.state.Session() as db:
+            save_event(db, evt)
+        # phát WS
+        await ws_manager.broadcast({"type": "person_event", **evt.model_dump()})
         await asyncio.sleep(3)
+
+# ---------- lifespan ----------
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # 1) tạo bảng
+    Base.metadata.create_all(bind=engine)
+    # 2) attach Session factory lên app.state
+    from app.db import SessionLocal
+    app.state.Session = SessionLocal # app.state lưu biến toàn cục vào app
+    # 3) start background tasks
+    task = asyncio.create_task(fake_generator(app))
+    try:
+        yield
+    finally:
+        task.cancel()
+        with contextlib.suppress(Exception):
+            await task
+
+app = FastAPI(title="Mini Alerts (lifespan)", lifespan=lifespan)
+
+# ---------- REST ----------
+@app.get("/health")
+async def health():
+    return {"ok": True}
+
+@app.get("/events/recent")
+def recent(limit: int = 50, db: Session = Depends(get_db)): # gan db qua depend vao endpoint
+    q = db.query(Event).order_by(Event.id.desc()).limit(limit).all()
+    out = []
+    for r in reversed(q):  # trả theo thời gian tăng dần
+        out.append({
+            "type": "person_event",
+            "id": r.evt_id,
+            "ts": r.ts,
+            "camera_id": r.camera_id,
+            "source": r.source,
+            "bbox": json.loads(r.bbox),
+            "snapshot_url": r.snapshot_url,
+            "person": None  # sẽ tra theo person_id sau
+        })
+    return JSONResponse(out)
+
+@app.post("/enroll")
+def enroll(name: str = Form(...), file: UploadFile = File(...), db: Session = Depends(get_db)): # có gì tạo ra session_local liên tục từ res,req
+    # TODO: xử lý thật (RetinaFace + ArcFace). Hiện tại tạo Person rỗng.
+    p = Person(name=name)
+    db.add(p); db.commit(); db.refresh(p)
+    return {"person_id": p.id, "faces": 1, "name": name}
+
+# ---------- WS ----------
+@app.websocket("/stream")
+async def stream(ws: WebSocket):
+    await ws_manager.connect(ws)
+    try:
+        while True:
+            # giữ kết nối sống; client có thể gửi "ping"
+            await ws.receive_text()
+    except WebSocketDisconnect:
+        ws_manager.disconnect(ws)
