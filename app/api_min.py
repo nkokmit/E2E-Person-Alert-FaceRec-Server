@@ -11,6 +11,9 @@ from sqlalchemy.orm import Session
 from app.db import engine, Base, get_db
 from app.models import Event, Person
 from app.ws_manager import WSManager
+from fastapi.staticfiles import StaticFiles
+import yaml,os
+
 
 # ---------- Pydantic ----------
 class PersonEvent(BaseModel):
@@ -38,6 +41,12 @@ def save_event(db: Session, evt: PersonEvent):
     db.add(row)
     db.commit()
 
+async def emit_from_detector(app:FastAPI,evt_dict:dict):
+    evt = PersonEvent(**evt_dict)
+    with app.state.Session() as db:
+        save_event(db,evt)
+    await ws_manager.broadcast({"type": "person_event", **evt.model_dump()})
+    
 async def fake_generator(app: FastAPI):
     # thay bằng detector thật sau
     while True:
@@ -66,14 +75,26 @@ async def lifespan(app: FastAPI):
     from app.db import SessionLocal
     app.state.Session = SessionLocal # app.state lưu biến toàn cục vào app
     # 3) start background tasks
-    task = asyncio.create_task(fake_generator(app))
+    
+    with open("configs.yaml","r",encoding="utf-8") as f:
+        cfg = yaml.safe_load(f)
+
+    static_root = cfg["paths"]["snapshot_dir"]
+    os.makedirs(static_root, exist_ok=True)
+    app.mount(cfg["paths"]["static_mount"], StaticFiles(directory="data"), name="static")
+
+
+    from detector.person_detector import PersonDetector
+    det = PersonDetector(cfg, lambda evt: emit_from_detector(app, evt))
+    det_task = asyncio.create_task(det.run(camera_id="cam01"))
+
     try:
         yield
     finally:
-        task.cancel()
+        det_task.cancel()
         with contextlib.suppress(Exception):
-            await task
-
+            await det_task
+            
 app = FastAPI(title="Mini Alerts (lifespan)", lifespan=lifespan)
 
 # ---------- REST ----------
