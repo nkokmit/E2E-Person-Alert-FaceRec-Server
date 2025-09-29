@@ -1,5 +1,4 @@
 camera:
-  # dùng webcam: 0  |  dùng RTSP: "rtsp://user:pass@ip:port/..."
   source: 0
   imgsz: 640        # 320–640 tùy FPS
   conf: 0.45

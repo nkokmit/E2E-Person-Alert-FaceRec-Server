@@ -1,1 +1,1 @@
-"No event received in 10s, still alive...")
+127.0.0.1:8000/stream
