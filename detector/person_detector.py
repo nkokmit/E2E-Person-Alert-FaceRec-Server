@@ -9,7 +9,7 @@ def _iou_xyxy(a, b):
     ax1, ay1, ax2, ay2 = a
     bx1, by1, bx2, by2 = b
     ix1, iy1 = max(ax1, bx1), max(ay1, by1)
-    ix2, iy2 = min(ax2, by2), min(ay2, by2)
+    ix2, iy2 = min(ax2, bx2), min(ay2, by2)
     iw, ih = max(0, ix2 - ix1), max(0, iy2 - iy1)
     inter = iw * ih
     area_a = max(0, ax2 - ax1) * max(0, ay2 - ay1)
@@ -33,7 +33,7 @@ class PersonDetector:
         self.stride = int(cfg["camera"].get("stride", 1))
         self.snap_every_s = float(cfg["camera"].get("snap_every_s", 3.0))
 
-        self.device = cfg["yolo"].get("device", "cpu")
+        self.device = cfg["yolo"].get("device", "cuda")
         self.model_name = cfg["yolo"].get("model", "yolov8n.pt")
 
         # state
