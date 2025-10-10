@@ -32,7 +32,7 @@ class PersonDetector:
         self.conf = float(cfg["camera"].get("conf", 0.45))
         self.stride = int(cfg["camera"].get("stride", 1))
         self.snap_every_s = float(cfg["camera"].get("snap_every_s", 3.0))
-
+        
         self.device = cfg["yolo"].get("device", "cuda")
         self.model_name = cfg["yolo"].get("model", "yolov8n.pt")
 
