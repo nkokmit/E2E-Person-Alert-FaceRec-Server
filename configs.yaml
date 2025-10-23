@@ -1,15 +1,19 @@
-camera:
-  source: 0
-  imgsz: 640        # 320–640 tùy FPS
-  conf: 0.45
-  stride: 1         # đọc 1 frame/1, tăng lên 2–3 nếu muốn giảm tải
-  snap_every_s: 3.0 # lưu 1 snapshot mỗi ~3s khi có person
-
 paths:
   snapshot_dir: "data/snapshots"
-  static_mount: "/static"  # sẽ truy cập như /static/snapshots/xxx.jpg
+  static_mount: "/static"
+
+security:
+  ingest_token: "SHARED_TOKEN_ABC"
+
 yolo:
-  # Nếu có CUDA -> để 'cuda', còn không để 'cpu'
-  device: "cuda"
-  # auto tải yolov8n.pt từ ultralytics
+  device: "cuda"         # hoặc "cpu"
   model: "yolov8n.pt"
+  imgsz: 640
+  conf: 0.45
+
+alarm:
+  enabled: true
+  map:
+    front_gate: "http://esp32-front.local/alarm/on"
+  seconds: 3
+  cooldown_s: 10

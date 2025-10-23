@@ -1,10 +1,10 @@
 # filepath: app/api_min.py
-# Chạy: uvicorn app.api_min:app --reload
+# Chạy: uvicorn app.api_min:app --reload --host 0.0.0.0 --port 8000
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, UploadFile, File, Form, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager,suppress
 import asyncio, time, uuid, json, os, yaml
 from sqlalchemy.orm import Session
 from fastapi.staticfiles import StaticFiles
@@ -12,7 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.db import engine, Base, get_db
 from app.models import Event, Person
 from app.ws_manager import WSManager
-from app.detector_service import DetectorService
+
+from fastapi import HTTPException, Header
+from pathlib import Path
+import httpx
+from app.snapshot_worker import SnapshotWorker
 
 # ---------- Schema ----------
 class PersonEvent(BaseModel):
@@ -59,14 +63,17 @@ async def lifespan(app: FastAPI):
     os.makedirs(cfg["paths"]["snapshot_dir"], exist_ok=True)
     app.mount(cfg["paths"]["static_mount"], StaticFiles(directory="data"), name="static")
 
-    service = DetectorService(cfg, lambda evt: emit_from_detector(app, evt))
-    app.state.detector_service = service
-    await service.start()
+    # KHỞI ĐỘNG WORKER (thay vì DetectorService)
+    worker = SnapshotWorker(cfg, lambda evt: emit_from_detector(app, evt))
+    app.state.snapshot_worker = worker
+    app.state.worker_task = asyncio.create_task(worker.start())
 
     try:
         yield
     finally:
-        await service.stop()
+        app.state.worker_task.cancel()
+        with suppress(Exception):
+            await app.state.worker_task
 
 app = FastAPI(title="Mini Alerts", lifespan=lifespan)
 
@@ -152,3 +159,44 @@ async def stream(ws: WebSocket):
             await asyncio.sleep(60)  # giữ kết nối
     except WebSocketDisconnect:
         ws_manager.disconnect(ws)
+
+@app.post("/snapshot")
+async def upload_snapshot(
+    camera_id: str = Form(...),
+    pir_level: int = Form(1),
+    file: UploadFile = File(...),
+    token: str = Form(...),
+):
+    # 1) kiểm tra token
+    try:
+        with open("configs.yaml","r",encoding="utf-8") as f:
+            cfg = yaml.safe_load(f)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Missing configs.yaml")
+
+    if token != cfg.get("security",{}).get("ingest_token"):
+        raise HTTPException(status_code=401, detail="invalid token")
+
+    # 2) kiểm tra định dạng & kích thước (tuỳ chọn)
+    if file.content_type not in ("image/jpeg", "image/jpg"):
+        raise HTTPException(status_code=415, detail="only jpeg accepted")
+    raw = await file.read()
+    if len(raw) > 2_000_000:  # 2MB
+        raise HTTPException(status_code=413, detail="file too large")
+
+    # 3) lưu file
+    snap_dir = Path(cfg["paths"]["snapshot_dir"])
+    snap_dir.mkdir(parents=True, exist_ok=True)
+    fname = f"{camera_id}_{int(time.time())}_{uuid.uuid4().hex[:6]}.jpg"
+    fpath = snap_dir / fname
+    fpath.write_bytes(raw)
+
+    # 4) trả kết quả (chỉ lưu ảnh, CHƯA YOLO)
+    url = f"/static/snapshots/{fname}"
+    return {
+        "ok": True,
+        "camera_id": camera_id,
+        "pir_level": pir_level,
+        "snapshot_url": url,
+        "size": len(raw)
+    }

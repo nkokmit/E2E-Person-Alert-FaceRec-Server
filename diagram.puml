@@ -1,0 +1,23 @@
+@startuml
+actor User as U
+participant "PIR HC-SR501" as PIR
+participant "ESP32-CAM" as CAM
+participant "Server (FastAPI+YOLO)" as S
+participant "App (WS notify)" as APP
+participant "Relay/Buzzer 5V" as BZ
+
+PIR -> CAM: OUT=HIGH (phát hiện chuyển động)
+CAM -> CAM: Debounce & Cooldown (e.g., 2s) + chụp 1-3 frame
+CAM -> S: POST /api/events/upload (JPEG + meta)
+S -> S: YOLO detect (person?)
+alt Có người
+  S -> S: Ghi DB (event, snapshot, bbox, score)
+  S -> APP: WS broadcast ALERT (event info)
+  U -> APP: Nhấn "Kích còi"
+  APP -> S: POST /api/buzzer/activate (camera_id, duration_ms)
+  S -> CAM: WS {cmd:"buzz", duration_ms}
+  CAM -> BZ: Kéo relay ON (duration_ms) rồi OFF
+else Không có người
+  S -> S: Ghi event (no-person) hoặc bỏ qua
+end
+@enduml

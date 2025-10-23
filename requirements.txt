@@ -1,7 +1,7 @@
-# server/requirements.txt
+﻿# server/requirements.txt
 ultralytics==8.*
 opencv-python
-onnxruntime-gpu         # cho InsightFace (ArcFace) và/hoặc YOLO ONNX nếu muốn
+onnxruntime-gpu         # cho InsightFace (ArcFace) vÃ /hoáº·c YOLO ONNX náº¿u muá»‘n
 numpy
 scipy
 scikit-learn
@@ -12,6 +12,6 @@ websockets
 pydantic-settings
 PyYAML
 SQLAlchemy
-lapx                    # NMS nhanh (nếu cần)
-faiss-cpu               # hoặc faiss-gpu nếu đã cài CUDA phù hợp
-mlflow                  # tuỳ chọn
+lapx                    # NMS nhanh (náº¿u cáº§n)
+faiss-cpu               # hoáº·c faiss-gpu náº¿u Ä‘Ã£ cÃ i CUDA phÃ¹ há»£p
+mlflow                  # tuá»³ chá»n
