@@ -1,15 +1,19 @@
-paths:
+paths: 
   snapshot_dir: "data/snapshots"
   static_mount: "/static"
 
 security:
   ingest_token: "SHARED_TOKEN_ABC"
 
+auth:
+  secret_key: "SIEU_BI_MAT_THAY_KEY_NAY"
+  token_exp_secs: 604800
+
 yolo:
-  device: "cuda"         # hoặc "cpu"
+  device: "cuda"      # "cpu" nếu không có GPU
   model: "yolov8n.pt"
   imgsz: 640
-  conf: 0.45
+  conf_thres: 0.35     # sau này bạn chỉnh 0.3/0.5 tùy ý
 
 alarm:
   enabled: true
@@ -17,3 +21,8 @@ alarm:
     front_gate: "http://esp32-front.local/alarm/on"
   seconds: 3
   cooldown_s: 10
+
+events:
+  yellow_min_sec: 15.0
+  red_min_sec: 60.0
+  session_gap_sec: 5.0
