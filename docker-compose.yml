@@ -1,0 +1,25 @@
+services:
+  facerec-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: facerec_server
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - APP_SECRET=prod_secret_change_me_in_production
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+      - ./configs.yaml:/app/configs.yaml:ro
+      - ./models:/app/models
+    # Uncomment the following section if running on an NVIDIA GPU host with nvidia-container-toolkit:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+

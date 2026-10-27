@@ -1,4 +1,4 @@
-﻿# server/requirements.txt
+# server/requirements.txt
 ultralytics==8.*
 opencv-python
 onnxruntime-gpu         # cho InsightFace (ArcFace) vÃ /hoáº·c YOLO ONNX náº¿u muá»‘n
@@ -15,3 +15,5 @@ SQLAlchemy
 lapx                    # NMS nhanh (náº¿u cáº§n)
 faiss-cpu               # hoáº·c faiss-gpu náº¿u Ä‘Ã£ cÃ i CUDA phÃ¹ há»£p
 mlflow                  # tuá»³ chá»n
+
+onnx                    # export & kiểm tra mô hình ONNX

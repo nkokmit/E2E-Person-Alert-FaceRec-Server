@@ -1,20 +1,16 @@
 paths: 
   snapshot_dir: "data/snapshots"
   static_mount: "/static"
-
 security:
   ingest_token: "SHARED_TOKEN_ABC"
-
 auth:
   secret_key: "SIEU_BI_MAT_THAY_KEY_NAY"
   token_exp_secs: 604800
-
 yolo:
   device: "cuda"      # "cpu" nếu không có GPU
   model: "yolov8n.pt"
   imgsz: 640
-  conf_thres: 0.35     # sau này bạn chỉnh 0.3/0.5 tùy ý
-
+  conf_thres: 0.35     
 alarm:
   enabled: true
   map:
@@ -26,3 +22,29 @@ events:
   yellow_min_sec: 15.0
   red_min_sec: 60.0
   session_gap_sec: 5.0
+
+
+face:
+  device: "auto"                  # auto | cpu | cuda
+  detector: "scrfd"               # scrfd | yunet | yolo
+  det_model: "models/faces/det_500m.onnx"   # yunet: face_detection_yunet_2023mar.onnx, yolo: yolov8n-face.pt
+  det_input_size: 640
+  det_score_thresh: 0.5
+  det_nms_thresh: 0.4
+  rec_model: "models/faces/w600k_mbf.onnx"  # MobileFaceNet (buffalo_s); w600k_r50.onnx cho độ chính xác cao hơn
+  rec_threshold: 0.40             # cosine similarity >= threshold -> Known
+  rec_margin: 0.05                # best - second >= margin
+  aggregate: "max"                # max | mean (khi 1 người có nhiều embedding)
+  flip_tta: false
+  rec_batch: 32
+  min_face_size: 40
+  min_sharpness: 25.0
+  max_faces: 20
+  gallery_path: "data/faces/gallery.npz"
+
+worker:
+  max_queue_size: 15
+  max_latency_ms: 150        # drop frame nếu latency > 150ms để duy trì real-time
+  debounce_sec: 30.0         # cooldown 30s cho cùng 1 người / camera
+  unknown_debounce_sec: 30.0 # cooldown 30s cho unknown
+  save_annotated_snapshot: true
